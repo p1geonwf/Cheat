@@ -1,6 +1,7 @@
 #include <Memory.h>
 
 int main() {
+	
 	HINSTANCE result = ShellExecuteA(
 		nullptr,
 		"open",
@@ -9,9 +10,9 @@ int main() {
 		nullptr,
 		SW_SHOW
 	);
-
+	
 	Sleep(1000);
-
+	
 	// Find process
 	const std::string_view processName = "Notepad.exe";
 	Memory memory = { };
@@ -19,7 +20,7 @@ int main() {
 		std::cout << "Process " << processName << " found!" << "\n\n";
 	}
 
-	auto ret = memory.findAll<int>(1211);
+	
 
 	bool breakPoint = true;
 	
@@ -37,7 +38,6 @@ int main() {
 // Make log class
 // Make a drop down menu that will show 2 tabs, one with windows and other with all processes
 // check what can be const and constexpr
-// Make sure that findAll works
 // Something to poll for memory rescans of the selected addresses
 // Change all false and trues to exit failure/success
 // Make readBuffer wrapper

@@ -18,6 +18,15 @@
 #include <stdexcept>
 #include <type_traits>
 #include <chrono>
+#include <sal.h> 
+
+namespace MemProtect {
+	inline constexpr DWORD readWrite = PAGE_READWRITE;
+	inline constexpr DWORD readOnly = PAGE_READONLY;
+	inline constexpr DWORD execRead = PAGE_EXECUTE_READ;
+	inline constexpr DWORD writeCopy = PAGE_WRITECOPY;
+	inline constexpr DWORD fullScan = readWrite | readOnly | execRead | writeCopy;
+}
 
 inline bool CompareStrings(const std::string_view moduleName, const wchar_t* moduleNameToCompare) {
 	std::wstring w;
@@ -137,9 +146,7 @@ template<typename T> std::vector<uintptr_t> Memory::findAllTypes(const T& value)
 
 	for (auto& region : enumerateMemoryRegions()) {
 		if (!(region.state & MEM_COMMIT)) continue;
-		if (!(region.protect &
-			(PAGE_READWRITE | PAGE_READONLY | PAGE_EXECUTE_READ)))
-			continue;
+		if (!(region.protect & MemProtect::readWrite)) continue;
 
 		uintptr_t base = reinterpret_cast<uintptr_t>(region.baseAddress);
 		size_t sz = region.regionSize;

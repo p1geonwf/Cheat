@@ -319,7 +319,7 @@ std::vector<uintptr_t> Memory::findAllBytes(const void* pattern, size_t length) 
 
 	for (const auto& region : enumerateMemoryRegions()) {
 		if (!(region.state & MEM_COMMIT)) continue;
-		if (!(region.protect & (PAGE_READWRITE | PAGE_READONLY | PAGE_EXECUTE_READ))) continue;
+		if (!(region.protect & MemProtect::readWrite)) continue;
 
 		auto base = reinterpret_cast<uintptr_t>(region.baseAddress);
 		auto size = region.regionSize;
