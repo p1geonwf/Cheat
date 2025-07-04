@@ -8,6 +8,7 @@
 #include <format>
 #include <chrono>
 #include <ctime>
+#include <fstream>
 
 enum class LogLevel { Info, Warning, Error };
 enum class SinkId { Console, TextFile, GUI, _count };
@@ -51,28 +52,80 @@ private:
         }
     }
 
-    static std::string format(LogLevel level, std::string_view file, int line, std::string_view msg) {
-        const char* levelStr = enum_to_string(level);
+    static std::string current_timestamp() {
+        using clock = std::chrono::system_clock;
+        auto now = clock::now();
+        auto tt = clock::to_time_t(now);
+        std::tm bt;
 
-        return std::format(
-            "[{}] {}:{} — {}",
-            levelStr, file, line, msg
-        );
+        #ifdef _WIN32
+            localtime_s(&bt, &tt);
+        #else
+            localtime_r(&tt, &bt);
+        #endif
+
+        char buf[20];
+        std::strftime(buf, sizeof(buf), "%d/%m/%y %H:%M:%S", &bt);
+        return buf;
+    }
+
+    static std::string format(LogLevel level,
+        std::string_view file,
+        int line,
+        std::string_view msg)
+    {
+        return std::format("[{}] [{}] {}:{} - {}",
+            current_timestamp(),
+            enum_to_string(level),
+            file,
+            line,
+            msg);
     }
 
     static inline std::array<SinkFn, static_cast<size_t>(SinkId::_count)> s_sinks = { };
+
+    struct Registrar {
+        Registrar() {
+            // Console 
+            Logger::addSink(SinkId::Console,
+                [](auto, auto, auto, std::string_view msg) {
+                    std::cerr << msg << "\n";
+                });
+
+            // File
+            static std::ofstream logfile("logs.txt", std::ios::app);
+            Logger::addSink(SinkId::TextFile,
+                [&](auto, auto, auto, std::string_view msg) {
+                    logfile << msg << "\n";
+                });
+
+            // GUI
+            Logger::addSink(SinkId::GUI,
+                [&](auto, auto, auto, std::string_view msg) {
+                    
+                });
+        }
+    };
+
+    static inline Registrar s_registrar;
 };
+
+#if defined(_MSC_VER)
+    #define __SHORT_FILE__ (strrchr(__FILE__,'\\') ? strrchr(__FILE__,'\\')+1 : __FILE__)
+#else
+    #define __SHORT_FILE__ (strrchr(__FILE__,'/')  ? strrchr(__FILE__,'/') +1 : __FILE__)
+#endif
 
 #define LOG_TO(sink)  LOG_TO_##sink
 
 #define LOG_TO_Console(level, msg)   \
-    Logger::logTo( SinkId::Console, LogLevel::level, __FILE__, __LINE__, msg)
+    Logger::logTo(SinkId::Console,  LogLevel::level, __SHORT_FILE__, __LINE__, msg)
 
 #define LOG_TO_TextFile(level, msg)  \
-    Logger::logTo(SinkId::TextFile, LogLevel::level, __FILE__, __LINE__, msg)
+    Logger::logTo(SinkId::TextFile, LogLevel::level, __SHORT_FILE__, __LINE__, msg)
 
 #define LOG_TO_GUI(level, msg)       \
-    Logger::logTo(SinkId::GUI, LogLevel::level, __FILE__, __LINE__, msg)
+    Logger::logTo(SinkId::GUI,      LogLevel::level, __SHORT_FILE__, __LINE__, msg)
 
 /*
 * Examples:
@@ -80,9 +133,7 @@ private:
 * LOG_TO(Console)(Info, "Info log to console");
 * LOG_TO(TextFile)(Warning, "Warning log to text file");
 * LOG_TO(GUI)(Error, "Error log to GUI");
+* 
+* For full file path use __FILE__
+* 
 */ 
-
-
-// TODO:
-// Instantiate every logger
-// Add time support

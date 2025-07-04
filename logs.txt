@@ -1,0 +1,7 @@
+[2025-07-04 20:27:38] [WARNING] C:\Users\p1geo\Desktop\C++\Malware and Hacks\Cheat\Source\main.cpp:24 — This goes to logs.txt
+[2025-07-04 20:28:06] [WARNING] C:\Users\p1geo\Desktop\C++\Malware and Hacks\Cheat\Source\main.cpp:24 — This goes to logs.txt
+[2025-07-04 20:29:00] [WARNING] C:\Users\p1geo\Desktop\C++\Malware and Hacks\Cheat\Source\main.cpp:24 - This goes to logs.txt
+[2025-07-04 20:29:18] [WARNING] C:\Users\p1geo\Desktop\C++\Malware and Hacks\Cheat\Source\main.cpp:24 - This goes to logs.txt
+[2025-07-04 20:31:24] [WARNING] main.cpp:24 - This goes to logs.txt
+[04-07-25 20:32:41] [WARNING] main.cpp:24 - This goes to logs.txt
+[04/07/25 20:32:56] [WARNING] main.cpp:24 - This goes to logs.txt

@@ -28,7 +28,12 @@ void Memory::dispAllProcesses() {
 
 	const HANDLE snapShot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 	if (snapShot == INVALID_HANDLE_VALUE) {
-		std::cerr << "Failed to create snapshot. Error code: " << GetLastError() << std::endl;
+		LOG_TO(Console)(Error,
+			std::format(
+				"Failed to create snapshot. Error code: {}",
+				GetLastError()
+			)
+		);
 		return;
 	}
 
@@ -50,7 +55,12 @@ void Memory::dispAllWindowedProcesses() {
 
 	const HANDLE snapShot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 	if (snapShot == INVALID_HANDLE_VALUE) {
-		std::cerr << "Failed to create snapshot. Error code: " << GetLastError() << std::endl;
+		LOG_TO(Console)(Error,
+			std::format(
+				"Failed to create snapshot. Error code: {}",
+				GetLastError()
+			)
+		);
 		return;
 	}
 
@@ -71,7 +81,12 @@ void Memory::dispAllModules(DWORD processId) {
 
 	const HANDLE snapShot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, processId);
 	if (snapShot == INVALID_HANDLE_VALUE) {
-		std::cerr << "Failed to create snapshot. Error code: " << GetLastError() << std::endl;
+		LOG_TO(Console)(Error,
+			std::format(
+				"Failed to create snapshot. Error code: {}",
+				GetLastError()
+			)
+		);
 		return;
 	}
 
@@ -90,7 +105,12 @@ bool Memory::attachProcess(const std::string_view processName) {
 
 	const HANDLE snapShot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 	if (snapShot == INVALID_HANDLE_VALUE) {
-		std::cerr << "Failed to create snapshot. Error code: " << GetLastError() << std::endl;
+		LOG_TO(Console)(Error,
+			std::format(
+				"Failed to create snapshot. Error code: {}",
+				GetLastError()
+			)
+		);
 		return EXIT_FAILURE;
 	}
 	if (Process32First(snapShot, &entry)) {
@@ -99,14 +119,25 @@ bool Memory::attachProcess(const std::string_view processName) {
 				m_processId = entry.th32ProcessID;
 				m_processHandle = OpenProcess(PROCESS_ALL_ACCESS, false, m_processId);
 				if (m_processHandle == NULL) {
-					std::cerr << "Failed to open process " << m_processId << ". Error code: " << GetLastError() << std::endl;
+					LOG_TO(Console)(Error,
+						std::format(
+							"Failed to open process {}. Error code: {}",
+							m_processId,
+							GetLastError()
+						)
+					);
 				}
 				break;
 			}
 		} while (Process32Next(snapShot, &entry));
 	}
 	if (m_processId == 0) {
-		std::cerr << "Process " << processName << " not found!" << std::endl;
+		LOG_TO(Console)(Error,
+			std::format(
+				"Process {} not found!",
+				processName
+			)
+		);
 		return EXIT_FAILURE;
 	}
 
@@ -121,7 +152,12 @@ uintptr_t Memory::getModuleAddress(const std::string_view moduleName) {
 
 	const HANDLE snapShot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, m_processId);
 	if (snapShot == INVALID_HANDLE_VALUE) {
-		std::cerr << "Failed to create snapshot. Error code: " << GetLastError() << std::endl;
+		LOG_TO(Console)(Error,
+			std::format(
+				"Failed to create snapshot. Error code: {}",
+				GetLastError()
+			)
+		);
 		return 0;
 	}
 	uintptr_t result = 0;
@@ -136,7 +172,12 @@ uintptr_t Memory::getModuleAddress(const std::string_view moduleName) {
 
 	CloseHandle(snapShot);
 	if (!result) {
-		std::cerr << "getModuleAddress() for " << moduleName << " failed!" << "\n";
+		LOG_TO(Console)(Error,
+			std::format(
+				"getModuleAddress() for {} failed",
+				moduleName
+			)
+		);
 	}
 	return result;
 }
@@ -181,7 +222,7 @@ bool Memory::injectDLL(std::string_view dllPath) {
 	__analysis_assume(localKernel != nullptr);
 	FARPROC localLoadA = GetProcAddress(localKernel, "LoadLibraryA");
 	if (localLoadA == 0) {
-		std::cerr << "GetProcAddress for LoadLibraryA failed!\n";
+		LOG_TO(Console)(Error, "GetProcAddress for LoadLibraryA failed!");
 		return EXIT_FAILURE;
 	}
 
@@ -195,10 +236,15 @@ bool Memory::injectDLL(std::string_view dllPath) {
 	VirtualFreeEx(m_processHandle, reinterpret_cast<LPVOID>(remoteStr), 0, MEM_RELEASE);
 
 	if (exitCode == 0) {
-		std::cerr << "Remote LoadLibraryA failed!" << "\n\n";
+		LOG_TO(Console)(Error, "Remote LoadLibraryA failed!");
 		return EXIT_FAILURE;
 	}
-	std::cout << "Loaded " << dllPath << " successfully!" << "\n\n";
+	LOG_TO(Console)(Info,
+		std::format(
+			"Loaded {} successfully",
+			dllPath
+		)
+	);
 	return EXIT_SUCCESS;
 }
 
@@ -212,7 +258,12 @@ uintptr_t Memory::allocateProcessMemory(size_t allocationSize) {
 	);
 
 	if (remoteBufferPointer == nullptr) {
-		std::cerr << "VirtualAllocEx failed. Error code: " << GetLastError() << std::endl;
+		LOG_TO(Console)(Error,
+			std::format(
+				"VirtualAllocEx failed. Error code: {}",
+				GetLastError()
+			)
+		);
 	}
 	return reinterpret_cast<uintptr_t>(remoteBufferPointer);
 }
@@ -229,7 +280,12 @@ HANDLE Memory::createThread(uintptr_t startAddress, uintptr_t parameter) {
 	);
 
 	if (threadHandle == nullptr) {
-		std::cerr << "CreateRemoteThread failed. Error code: " << GetLastError() << std::endl;
+		LOG_TO(Console)(Error,
+			std::format(
+				"CreateRemoteThread failed. Error code: {}",
+				GetLastError()
+			)
+		);
 	}
 
 	return threadHandle;
@@ -242,9 +298,15 @@ void Memory::deleteThread(HANDLE threadHandle, uintptr_t bufferPtr) {
 
 		if (bufferPtr != 0) {
             if (!VirtualFreeEx(m_processHandle, reinterpret_cast<LPVOID>(bufferPtr), 0, MEM_RELEASE)) {
-                std::cerr << "Failed to free memory. Error code: " << GetLastError() << std::endl;
-            } else {
-                std::cout << "Memory freed successfully." << std::endl;
+				LOG_TO(Console)(Error,
+					std::format(
+						"Failed to free memory. Error code: {}",
+						GetLastError()
+					)
+				);
+            }
+			else {
+				LOG_TO(Console)(Info, "Memory freed successfully.");
             }
         }
 	}
@@ -258,7 +320,12 @@ bool Memory::changeMemoryProtection(uintptr_t address, size_t size, DWORD newPro
 		newProtection,
 		&oldProtection)
 		) {
-		std::cerr << "VirtualProtectEx failed. Error code: " << GetLastError() << std::endl;
+		LOG_TO(Console)(Error,
+			std::format(
+				"VirtualProtectEx failed. Error code: {}",
+				GetLastError()
+			)
+		);
 		return false;
 	}
 	return true;
@@ -273,7 +340,12 @@ bool Memory::restoreMemoryProtection(uintptr_t address, size_t size, DWORD origi
 		originalProtection,
 		&temp)
 		) {
-		std::cerr << "VirtualProtectEx restore failed. Error code: " << GetLastError() << std::endl;
+		LOG_TO(Console)(Error,
+			std::format(
+				"VirtualProtectEx restore failed. Error code: {}",
+				GetLastError()
+			)
+		);
 		return false;
 	}
 	return true;
@@ -293,7 +365,7 @@ std::vector<MemoryRegion> Memory::enumerateMemoryRegions() const {
 		MEMORY_BASIC_INFORMATION mbi;
 		if (VirtualQueryEx(m_processHandle, addr, &mbi, sizeof(mbi)) == 0)
 			break;
-		regions.push_back({ mbi.BaseAddress, mbi.RegionSize, mbi.State, mbi.Protect });
+		regions.push_back({ mbi.BaseAddress, mbi.RegionSize, mbi.State, mbi.Protect, mbi.Type });
 		addr = static_cast<LPBYTE>(mbi.BaseAddress) + mbi.RegionSize;
 	}
 	return regions;
