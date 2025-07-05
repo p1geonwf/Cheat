@@ -41,7 +41,6 @@ public:
         }
     }
 
-
 private:
     static constexpr const char* enum_to_string(LogLevel level) noexcept {
         switch (level) {
@@ -59,9 +58,9 @@ private:
         std::tm bt;
 
         #ifdef _WIN32
-            localtime_s(&bt, &tt);
+        localtime_s(&bt, &tt);
         #else
-            localtime_r(&tt, &bt);
+        localtime_r(&tt, &bt);
         #endif
 
         char buf[20];
@@ -69,11 +68,7 @@ private:
         return buf;
     }
 
-    static std::string format(LogLevel level,
-        std::string_view file,
-        int line,
-        std::string_view msg)
-    {
+    static std::string format( LogLevel level, std::string_view file, int line, std::string_view msg) {
         return std::format("[{}] [{}] {}:{} - {}",
             current_timestamp(),
             enum_to_string(level),
@@ -110,22 +105,29 @@ private:
     static inline Registrar s_registrar;
 };
 
-#if defined(_MSC_VER)
-    #define __SHORT_FILE__ (strrchr(__FILE__,'\\') ? strrchr(__FILE__,'\\')+1 : __FILE__)
+
+#ifdef _MSC_VER
+    #define __SHORT_FILE__ (strrchr(__FILE__,'\\') ? strrchr(__FILE__,'\\') + 1 : __FILE__)
 #else
-    #define __SHORT_FILE__ (strrchr(__FILE__,'/')  ? strrchr(__FILE__,'/') +1 : __FILE__)
+    #define __SHORT_FILE__ (strrchr(__FILE__,'/')  ? strrchr(__FILE__,'/')  + 1 : __FILE__)
 #endif
 
-#define LOG_TO(sink)  LOG_TO_##sink
 
-#define LOG_TO_Console(level, msg)   \
+#define LOG_TO(sink)  LOG_TO_##sink
+#ifndef RELEASE
+    #define LOG_TO_Console(level, msg)  \
     Logger::logTo(SinkId::Console,  LogLevel::level, __SHORT_FILE__, __LINE__, msg)
 
-#define LOG_TO_TextFile(level, msg)  \
+    #define LOG_TO_TextFile(level, msg) \
     Logger::logTo(SinkId::TextFile, LogLevel::level, __SHORT_FILE__, __LINE__, msg)
 
-#define LOG_TO_GUI(level, msg)       \
+    #define LOG_TO_GUI(level, msg)      \
     Logger::logTo(SinkId::GUI,      LogLevel::level, __SHORT_FILE__, __LINE__, msg)
+#else
+    #define LOG_TO_Console(level, msg)
+    #define LOG_TO_TextFile(level, msg)
+    #define LOG_TO_GUI(level, msg)
+#endif
 
 /*
 * Examples:

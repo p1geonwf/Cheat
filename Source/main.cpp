@@ -1,5 +1,7 @@
 #include <Memory.h>
 
+
+
 int main() {
 	/*
 	HINSTANCE result = ShellExecuteA(
@@ -19,10 +21,6 @@ int main() {
 	if (!memory.attachProcess(processName)) {
 		std::cout << "Process " << processName << " found!" << "\n\n";
 	}
-
-	LOG_TO(Console)(Info, "Hello, console!");
-	LOG_TO(TextFile)(Warning, "This goes to logs.txt");
-	LOG_TO(Console)(Error, "GUI stub (no-op)");
 
 	bool breakPoint = true;
 
@@ -50,6 +48,7 @@ int main() {
 // Change all false and trues to exit failure/success
 // Add threading by memory region
 // Apply readBuffer to string versions
+// Make a class to start processes
 
 // Goals:
 // Modify the game speed of kingdom rush

@@ -406,7 +406,7 @@ std::vector<uintptr_t> Memory::findAllBytes(const void* pattern, size_t length) 
 			size,
 			&bytesRead
 		) || bytesRead < length) {
-			continue;  // Couldn’t read or too small to match
+			continue;  // Couldn't read or too small to match
 		}
 
 		auto scanBegin = buffer.begin();
