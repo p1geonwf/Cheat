@@ -1,29 +1,20 @@
 #include <Memory.h>
 
 int main() {
-	/*
-	HINSTANCE result = ShellExecuteA(
-		nullptr,
-		"open",
-		"notepad.exe",
-		nullptr,
-		nullptr,
-		SW_SHOW
-	);
-	
-	Sleep(1000);
-	*/
+	Process::createProcess("notepad.exe");
 
 	// Find process
+	/*
 	const std::string_view processName = "Notepad.exe";
 	Memory memory = { };
-	if (!memory.attachProcess(processName)) {
-		std::cout << "Process " << processName << " found!" << "\n\n";
-	}
+	memory.attachProcessByName(processName);
+	*/
 
-	Process::createProcess("Notepad.exe");
+	// Process::suspendProcess(Process::getProcessId("Notepad.exe"));
+	// Process::resumeProcess(Process::getProcessId("Notepad.exe"));
+	// Process::terminateProcessById(Process::getProcessId("Notepad.exe"));
+	// Process::terminateProcessByName("Notepad.exe");
 
-	bool breakPoint = true;
 
 	/*
 	auto ret = memory.findAll<uint32_t>(1211);
@@ -46,7 +37,8 @@ int main() {
 // Make a drop down menu that will show 2 tabs, one with windows and other with all processes
 // check what can be const and constexpr,
 // Something to poll for memory rescans of the selected addresses
-// Add threading by memory region
+// Make logger not display logs that are of lower levels then instantiated
+// Make logs more descriptive check resumeThread
 
 // Make a class to start processes
 // Make class to edit registry
@@ -56,3 +48,4 @@ int main() {
 
 
 // Make filesystem enumeration class use c++17 header file for that and link it to process.h
+// Add threading by memory region

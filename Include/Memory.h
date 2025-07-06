@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <Windows.h>
+#include <winternl.h>
 #include <shellapi.h>
 #include <TlHelp32.h>
 #include <string>
@@ -14,6 +15,8 @@
 #include <iterator>
 #include <limits>
 #include <stdexcept>
+#include <unordered_set>
+#include <thread>
 #include <type_traits>
 #include <chrono>
 #include <sal.h> 
@@ -67,7 +70,8 @@ public:
 	void setProcessHandle(HANDLE processHandle);
 
 	// Self explanatory
-	bool attachProcess(const std::string_view processName);
+	bool attachProcessByName(const std::string_view processName);
+	bool attachProcessById(DWORD processId);
 	uintptr_t getModuleAddress(const std::string_view moduleName);
 
 	// DLL injection
@@ -206,7 +210,7 @@ template <typename T> bool Memory::singleWrite(const uintptr_t address, const T&
 
 	if (::WriteProcessMemory(m_processHandle, reinterpret_cast<LPVOID>(address), &val, sizeof(T), &bytesWritten)
 		&& bytesWritten == sizeof(T)) {
-		return EXIT_SUCCESS;
+		return true;
 	}
 	LOG_TO(Console)(Error,
 		std::format(
@@ -215,7 +219,7 @@ template <typename T> bool Memory::singleWrite(const uintptr_t address, const T&
 			GetLastError()
 		)
 	);
-	return EXIT_FAILURE;
+	return false;
 }
 
 template <typename T> std::vector<T> Memory::bufferRead(const uintptr_t address, size_t count) const {
@@ -251,7 +255,7 @@ template <typename T> bool Memory::bufferWrite(const uintptr_t address, const st
 
 	if (::WriteProcessMemory(m_processHandle, reinterpret_cast<LPVOID>(address), buffer.data(), byteCount, &bytesWritten)
 		&& bytesWritten == byteCount) {
-		return EXIT_SUCCESS;
+		return true;
 	}
 	LOG_TO(Console)(Error,
 		std::format(
@@ -260,5 +264,5 @@ template <typename T> bool Memory::bufferWrite(const uintptr_t address, const st
 			GetLastError()
 		)
 	);
-	return EXIT_FAILURE;
+	return false;
 }

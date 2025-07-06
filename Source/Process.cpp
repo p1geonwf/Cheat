@@ -1,5 +1,42 @@
 #include <Process.h>
 
+DWORD Process::getProcessId(const std::string_view processName) {
+	PROCESSENTRY32 entry = { };
+	entry.dwSize = sizeof(PROCESSENTRY32);
+
+	const HANDLE snapShot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	if (snapShot == INVALID_HANDLE_VALUE) {
+		LOG_TO(Console)(Error,
+			std::format(
+				"Failed to create snapshot. Error code: {}",
+				GetLastError()
+			)
+		);
+		return 0;
+	}
+
+	DWORD pid = 0;
+	if (Process32First(snapShot, &entry)) {
+		do {
+			if (CompareStrings(processName, entry.szExeFile)) {
+				pid = entry.th32ProcessID;
+				break;
+			}
+		} while (Process32Next(snapShot, &entry));
+	}
+
+	CloseHandle(snapShot);
+	if (pid == 0) {
+		LOG_TO(Console)(Error,
+			std::format(
+				"Process {} not found!",
+				processName
+			)
+		);
+	}
+	return pid;
+}
+
 void Process::dispAllProcesses() {
 	PROCESSENTRY32 entry = { };
 	entry.dwSize = sizeof(PROCESSENTRY32);
@@ -141,14 +178,74 @@ void Process::deleteThread(HANDLE processHandle, HANDLE threadHandle, uintptr_t 
 	}
 }
 
-bool Process::createProcess(std::string exePath) {
+bool Process::suspendThread(HANDLE threadHandle) {
+	if (threadHandle == nullptr) {
+		LOG_TO_Console(Error, "suspendThread(): invalid thread handle");
+		return false;
+	}
+
+	DWORD prevCount = SuspendThread(threadHandle);
+	if (prevCount == static_cast<DWORD>(-1)) {
+		LOG_TO_Console(Error,
+			std::format(
+				"SuspendThread(): failed, Error code: {}",
+				GetLastError()
+			)
+		);
+		return false;
+	}
+	LOG_TO_Console(Info,
+		std::format(
+			"Thread suspended, Previous suspend count: {}",
+			prevCount
+		)
+	);
+	return true;
+}
+
+bool Process::resumeThread(HANDLE threadHandle) {
+	if (threadHandle == nullptr) {
+		LOG_TO_Console(Error, "resumeThread(): invalid thread handle");
+		return false;
+	}
+
+	DWORD prevCount = ResumeThread(threadHandle);
+	if (prevCount == static_cast<DWORD>(-1)) {
+		LOG_TO_Console(Error,
+			std::format(
+				"ResumeThread(): failed, Error code: {}",
+				GetLastError()
+			)
+		);
+		return false;
+	}
+	LOG_TO_Console(Info,
+		std::format(
+			"Thread resumed, Previous suspend count: {}",
+			prevCount
+		)
+	);
+	return true;
+}
+
+bool Process::createProcess(std::string exeName, std::string args) {
 	PROCESS_INFORMATION pi = { };
 	STARTUPINFOA si = { };
 	si.cb = sizeof(si);
 
+	/* Windows itself will look for the Path of lpCommandLine's
+	   first entry if lpApplicationName is nullptr */
+	std::string cmdLine;
+	if (args.empty()) {
+		cmdLine = std::format("\"{}\"", exeName);
+	}
+	else {
+		cmdLine = std::format("\"{}\" {}", exeName, args);
+	}
+
 	if (CreateProcessA(
 		nullptr,
-		exePath.data(),
+		cmdLine.data(),
 		nullptr,
 		nullptr,
 		FALSE,
@@ -163,11 +260,11 @@ bool Process::createProcess(std::string exePath) {
 
 		LOG_TO(Console)(Info,
 			std::format(
-				"Process {} created successfuly",
-				exePath
+				"Process \"{}\" created successfuly",
+				exeName
 			)
 		);
-		return EXIT_SUCCESS;
+		return true;
 	}
 	LOG_TO(Console)(Error,
 		std::format(
@@ -175,7 +272,161 @@ bool Process::createProcess(std::string exePath) {
 			GetLastError()
 		)
 	);
-	return EXIT_FAILURE;
+	return false;
+}
+
+bool Process::terminateProcessById(DWORD processId, UINT exitCode) {
+	HANDLE handle = OpenProcess(PROCESS_TERMINATE, FALSE, processId);
+	if (handle == nullptr) {
+		LOG_TO(Console)(Error,
+			std::format(
+				"OpenProcess({}) for terminate failed, Error code: {}",
+				processId,
+				GetLastError()
+			)
+		);
+		return false;
+	}
+
+	BOOL ok = TerminateProcess(handle, exitCode);
+	CloseHandle(handle);
+
+	if (!ok) {
+		LOG_TO(Console)(Error,
+			std::format(
+				"TerminateProcess({}) failed, Error code: {}",
+				processId,
+				GetLastError()
+			)
+		);
+		return false;
+	}
+
+	LOG_TO(Console)(Info,
+		std::format(
+			"Process {} killed (exit code {})",
+			processId,
+			exitCode
+		)
+	);
+	return true;
+}
+
+bool Process::terminateProcessByName(const std::string_view processName, UINT exitCode) {
+	DWORD pid = getProcessId(processName);
+	if (pid == 0) {
+		return false;
+	}
+
+	return terminateProcessById(pid, 1);
+}
+
+bool Process::suspendProcess(DWORD processId) {
+	HANDLE handle = OpenProcess(PROCESS_SUSPEND_RESUME, FALSE, processId);
+	if (handle == nullptr) {
+		LOG_TO(Console)(Error,
+			std::format(
+				"OpenProcess({}) failed, Error code: {}",
+				processId,
+				GetLastError()
+			)
+		);
+		return false;
+	}
+
+	HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+	if (ntdll == nullptr) {
+		LOG_TO(Console)(Error,
+			std::format("GetModuleHandleA() failed, Error code: {}",
+				GetLastError()
+			)
+		);
+		CloseHandle(handle);
+		return false;
+	}
+
+	auto func = reinterpret_cast<NtSuspendProcess_t>(GetProcAddress(ntdll, "NtSuspendProcess"));
+	if (!func) {
+		LOG_TO(Console)(Error,
+			std::format(
+				"GetProcAddress(NtSuspendProcess) failed, Error code: {}",
+				GetLastError()
+			)
+		);
+		CloseHandle(handle);
+		return false;
+	}
+
+	NTSTATUS status = func(handle);
+	CloseHandle(handle);
+
+	if (!NT_SUCCESS(status)) {
+		LOG_TO(Console)(Error,
+			std::format(
+				"NtSuspendProcess({}) failed: 0x{:08X}",
+				processId,
+				static_cast<unsigned>(status)
+			)
+		);
+		return false;
+	}
+
+	LOG_TO(Console)(Info, std::format("Process {} suspended", processId));
+	return true;
+}
+
+bool Process::resumeProcess(DWORD processId) {
+	HANDLE handle = OpenProcess(PROCESS_SUSPEND_RESUME, FALSE, processId);
+	if (handle == nullptr) {
+		LOG_TO(Console)(Error,
+			std::format(
+				"OpenProcess({}) failed, Error code: {}",
+				processId,
+				GetLastError()
+			)
+		);
+		return false;
+	}
+
+	HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+	if (ntdll == nullptr) {
+		LOG_TO(Console)(Error,
+			std::format("GetModuleHandleA() failed, Error code: {}",
+				GetLastError()
+			)
+		);
+		CloseHandle(handle);
+		return false;
+	}
+
+	auto func = reinterpret_cast<NtResumeProcess_t>(GetProcAddress(ntdll, "NtResumeProcess"));
+	if (!func) {
+		LOG_TO(Console)(Error,
+			std::format(
+				"GetProcAddress(NtResumeProcess) failed, Error code: {}",
+				GetLastError()
+			)
+		);
+		CloseHandle(handle);
+		return false;
+	}
+
+	NTSTATUS status = func(handle);
+	CloseHandle(handle);
+
+	if (!NT_SUCCESS(status)) {
+		LOG_TO(Console)(Error,
+			std::format(
+				"NtResumeProcess({}) failed: 0x{:08X}",
+				processId,
+				static_cast<unsigned>(status)
+			)
+		);
+		return false;
+	}
+
+	LOG_TO(Console)(Info, std::format("Process {} resumed", processId));
+	return true;
 }
 
 BOOL CALLBACK Process::EnumWindowsProc(HWND hwnd, LPARAM lParam) {

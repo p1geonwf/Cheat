@@ -22,7 +22,7 @@ void Memory::setProcessHandle(HANDLE processHandle) {
 	m_processHandle = processHandle;
 }
 
-bool Memory::attachProcess(const std::string_view processName) {
+bool Memory::attachProcessByName(const std::string_view processName) {
 	PROCESSENTRY32 entry = { };
 	entry.dwSize = sizeof(PROCESSENTRY32);
 
@@ -34,7 +34,7 @@ bool Memory::attachProcess(const std::string_view processName) {
 				GetLastError()
 			)
 		);
-		return EXIT_FAILURE;
+		return false;
 	}
 	if (Process32First(snapShot, &entry)) {
 		do {
@@ -61,12 +61,52 @@ bool Memory::attachProcess(const std::string_view processName) {
 				processName
 			)
 		);
-		return EXIT_FAILURE;
+		return false;
 	}
 
 	CloseHandle(snapShot);
 
-	return EXIT_SUCCESS;
+	LOG_TO(Console)(Info,
+		std::format(
+			"Process {} found!",
+			processName
+		)
+	);
+	return true;
+}
+
+bool Memory::attachProcessById(DWORD processId) {
+	HANDLE handle = OpenProcess(PROCESS_ALL_ACCESS, false, processId);
+
+	if (handle == nullptr) {
+		LOG_TO(Console)(Error,
+			std::format(
+				"Failed to open process with ID: {}",
+				processId
+			)
+		);
+		return false;
+	}
+
+	DWORD exitCode = 0;
+	if (!GetExitCodeProcess(handle, &exitCode) || exitCode != STILL_ACTIVE) {
+		LOG_TO(Console)(Error,
+			std::format("Process {} not active (exit code {})",
+				processId, exitCode));
+		CloseHandle(handle);
+		return false;
+	}
+
+	m_processHandle = handle;
+	m_processId = processId;
+	LOG_TO(Console)(Info,
+		std::format(
+			"Opened process with ID: {}",
+			processId,
+			GetLastError()
+		)
+	);
+	return true;
 }
 
 uintptr_t Memory::getModuleAddress(const std::string_view moduleName) {
@@ -98,7 +138,7 @@ uintptr_t Memory::getModuleAddress(const std::string_view moduleName) {
 	if (!result) {
 		LOG_TO(Console)(Error,
 			std::format(
-				"getModuleAddress(): Failed for {}",
+				"Couldn't find module <{}>",
 				moduleName
 			)
 		);
@@ -107,6 +147,8 @@ uintptr_t Memory::getModuleAddress(const std::string_view moduleName) {
 }
 
 bool Memory::injectDLL(std::string_view dllPath) {
+
+
 	uintptr_t remoteStr = Process::allocateProcessMemory(m_processHandle, dllPath.size() + 1);
 
 	std::vector<char> pathBuf(dllPath.begin(), dllPath.end());
@@ -115,7 +157,7 @@ bool Memory::injectDLL(std::string_view dllPath) {
 	if (bufferWrite(remoteStr, pathBuf)) {
 		VirtualFreeEx(m_processHandle, reinterpret_cast<LPVOID>(remoteStr), 0, MEM_RELEASE);
 		LOG_TO(Console)(Error, "injectDLL(): VirtualFreeEx failed!");
-		return EXIT_FAILURE;
+		return false;
 	}
 
 	// Read <kernel32.dll> address (It will alwayse be loaded by windows)
@@ -124,7 +166,7 @@ bool Memory::injectDLL(std::string_view dllPath) {
 	FARPROC localLoadA = GetProcAddress(localKernel, "LoadLibraryA");
 	if (localLoadA == 0) {
 		LOG_TO(Console)(Error, "injectDLL(): GetProcAddress for LoadLibraryA failed!");
-		return EXIT_FAILURE;
+		return false;
 	}
 
 	HANDLE remoteThread = Process::createThread(m_processHandle, reinterpret_cast<uintptr_t>(localLoadA), remoteStr);
@@ -138,7 +180,7 @@ bool Memory::injectDLL(std::string_view dllPath) {
 
 	if (exitCode == 0) {
 		LOG_TO(Console)(Error, "createThread(): Remote LoadLibraryA failed!");
-		return EXIT_FAILURE;
+		return false;
 	}
 	LOG_TO(Console)(Info,
 		std::format(
@@ -146,7 +188,7 @@ bool Memory::injectDLL(std::string_view dllPath) {
 			dllPath
 		)
 		);
-	return EXIT_SUCCESS;
+	return true;
 }
 
 std::vector<SearchResult<std::string>> Memory::findAll(const std::string& s) const {
@@ -187,9 +229,9 @@ bool Memory::changeMemoryProtection(uintptr_t address, size_t size, DWORD newPro
 				GetLastError()
 			)
 		);
-		return EXIT_FAILURE;
+		return false;
 	}
-	return EXIT_SUCCESS;
+	return true;
 }
 
 bool Memory::restoreMemoryProtection(uintptr_t address, size_t size, DWORD originalProtection) {
@@ -207,9 +249,9 @@ bool Memory::restoreMemoryProtection(uintptr_t address, size_t size, DWORD origi
 				GetLastError()
 			)
 		);
-		return EXIT_SUCCESS;
+		return true;
 	}
-	return EXIT_FAILURE;
+	return false;
 }
 
 
