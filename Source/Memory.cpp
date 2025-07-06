@@ -22,83 +22,6 @@ void Memory::setProcessHandle(HANDLE processHandle) {
 	m_processHandle = processHandle;
 }
 
-void Memory::dispAllProcesses() {
-	PROCESSENTRY32 entry = { };
-	entry.dwSize = sizeof(PROCESSENTRY32);
-
-	const HANDLE snapShot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-	if (snapShot == INVALID_HANDLE_VALUE) {
-		LOG_TO(Console)(Error,
-			std::format(
-				"Failed to create snapshot. Error code: {}",
-				GetLastError()
-			)
-		);
-		return;
-	}
-
-	if (Process32First(snapShot, &entry)) {
-		do {
-			std::wcout << entry.szExeFile << L" | id: " << entry.th32ProcessID << std::endl;
-		} while (Process32Next(snapShot, &entry));
-	}
-
-	CloseHandle(snapShot);
-}
-
-void Memory::dispAllWindowedProcesses() {
-	std::unordered_set<DWORD> windowedPids;
-	EnumWindows(EnumWindowsProc, reinterpret_cast<LPARAM>(&windowedPids));
-
-	PROCESSENTRY32 entry = { };
-	entry.dwSize = sizeof(entry);
-
-	const HANDLE snapShot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-	if (snapShot == INVALID_HANDLE_VALUE) {
-		LOG_TO(Console)(Error,
-			std::format(
-				"Failed to create snapshot. Error code: {}",
-				GetLastError()
-			)
-		);
-		return;
-	}
-
-	if (Process32First(snapShot, &entry)) {
-		do {
-			if (windowedPids.count(entry.th32ProcessID)) {
-				std::wcout << entry.szExeFile << L" | id: " << entry.th32ProcessID << std::endl;
-			}
-		} while (Process32Next(snapShot, &entry));
-	}
-
-	CloseHandle(snapShot);
-}
-
-void Memory::dispAllModules(DWORD processId) {
-	MODULEENTRY32 entry = { };
-	entry.dwSize = sizeof(MODULEENTRY32);
-
-	const HANDLE snapShot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, processId);
-	if (snapShot == INVALID_HANDLE_VALUE) {
-		LOG_TO(Console)(Error,
-			std::format(
-				"Failed to create snapshot. Error code: {}",
-				GetLastError()
-			)
-		);
-		return;
-	}
-
-	if (Module32First(snapShot, &entry)) {
-		do {
-			std::wcout << entry.szExePath << std::endl;
-		} while (Module32Next(snapShot, &entry));
-	}
-
-	CloseHandle(snapShot);
-}
-
 bool Memory::attachProcess(const std::string_view processName) {
 	PROCESSENTRY32 entry = { };
 	entry.dwSize = sizeof(PROCESSENTRY32);
@@ -160,6 +83,7 @@ uintptr_t Memory::getModuleAddress(const std::string_view moduleName) {
 		);
 		return 0;
 	}
+
 	uintptr_t result = 0;
 	if (Module32First(snapShot, &entry)) {
 		do {
@@ -174,12 +98,55 @@ uintptr_t Memory::getModuleAddress(const std::string_view moduleName) {
 	if (!result) {
 		LOG_TO(Console)(Error,
 			std::format(
-				"getModuleAddress() for {} failed",
+				"getModuleAddress(): Failed for {}",
 				moduleName
 			)
 		);
 	}
 	return result;
+}
+
+bool Memory::injectDLL(std::string_view dllPath) {
+	uintptr_t remoteStr = Process::allocateProcessMemory(m_processHandle, dllPath.size() + 1);
+
+	std::vector<char> pathBuf(dllPath.begin(), dllPath.end());
+	pathBuf.push_back('\0');
+
+	if (bufferWrite(remoteStr, pathBuf)) {
+		VirtualFreeEx(m_processHandle, reinterpret_cast<LPVOID>(remoteStr), 0, MEM_RELEASE);
+		LOG_TO(Console)(Error, "injectDLL(): VirtualFreeEx failed!");
+		return EXIT_FAILURE;
+	}
+
+	// Read <kernel32.dll> address (It will alwayse be loaded by windows)
+	HMODULE localKernel = GetModuleHandleA("kernel32.dll");
+	__analysis_assume(localKernel != nullptr);
+	FARPROC localLoadA = GetProcAddress(localKernel, "LoadLibraryA");
+	if (localLoadA == 0) {
+		LOG_TO(Console)(Error, "injectDLL(): GetProcAddress for LoadLibraryA failed!");
+		return EXIT_FAILURE;
+	}
+
+	HANDLE remoteThread = Process::createThread(m_processHandle, reinterpret_cast<uintptr_t>(localLoadA), remoteStr);
+	WaitForSingleObject(remoteThread, INFINITE);
+
+	DWORD exitCode = 0;
+	GetExitCodeThread(remoteThread, &exitCode);
+
+	CloseHandle(remoteThread);
+	VirtualFreeEx(m_processHandle, reinterpret_cast<LPVOID>(remoteStr), 0, MEM_RELEASE);
+
+	if (exitCode == 0) {
+		LOG_TO(Console)(Error, "createThread(): Remote LoadLibraryA failed!");
+		return EXIT_FAILURE;
+	}
+	LOG_TO(Console)(Info,
+		std::format(
+			"Loaded {} successfully",
+			dllPath
+		)
+		);
+	return EXIT_SUCCESS;
 }
 
 std::vector<SearchResult<std::string>> Memory::findAll(const std::string& s) const {
@@ -206,112 +173,6 @@ std::vector<SearchResult<std::string>> Memory::findAll(const std::string& s) con
 	return results;
 }
 
-bool Memory::injectDLL(std::string_view dllPath) {
-	uintptr_t remoteStr = allocateProcessMemory(dllPath.size() + 1);
-
-	std::vector<char> pathBuf(dllPath.begin(), dllPath.end());
-	pathBuf.push_back('\0');
-
-	if (!bufferWrite(remoteStr, pathBuf)) {
-		VirtualFreeEx(m_processHandle, reinterpret_cast<LPVOID>(remoteStr), 0, MEM_RELEASE);
-		return EXIT_FAILURE;
-	}
-
-	// Read <kernel32.dll> address (It will alwayse be loaded by windows)
-	HMODULE localKernel = GetModuleHandleA("kernel32.dll");
-	__analysis_assume(localKernel != nullptr);
-	FARPROC localLoadA = GetProcAddress(localKernel, "LoadLibraryA");
-	if (localLoadA == 0) {
-		LOG_TO(Console)(Error, "GetProcAddress for LoadLibraryA failed!");
-		return EXIT_FAILURE;
-	}
-
-	HANDLE remoteThread = createThread(reinterpret_cast<uintptr_t>(localLoadA), remoteStr);
-	WaitForSingleObject(remoteThread, INFINITE);
-
-	DWORD exitCode = 0;
-	GetExitCodeThread(remoteThread, &exitCode);
-
-	CloseHandle(remoteThread);
-	VirtualFreeEx(m_processHandle, reinterpret_cast<LPVOID>(remoteStr), 0, MEM_RELEASE);
-
-	if (exitCode == 0) {
-		LOG_TO(Console)(Error, "Remote LoadLibraryA failed!");
-		return EXIT_FAILURE;
-	}
-	LOG_TO(Console)(Info,
-		std::format(
-			"Loaded {} successfully",
-			dllPath
-		)
-	);
-	return EXIT_SUCCESS;
-}
-
-uintptr_t Memory::allocateProcessMemory(size_t allocationSize) {
-	LPVOID remoteBufferPointer = VirtualAllocEx(
-		m_processHandle,
-		nullptr,
-		static_cast<SIZE_T>(allocationSize),
-		MEM_RESERVE | MEM_COMMIT,
-		PAGE_EXECUTE_READWRITE
-	);
-
-	if (remoteBufferPointer == nullptr) {
-		LOG_TO(Console)(Error,
-			std::format(
-				"VirtualAllocEx failed. Error code: {}",
-				GetLastError()
-			)
-		);
-	}
-	return reinterpret_cast<uintptr_t>(remoteBufferPointer);
-}
-
-HANDLE Memory::createThread(uintptr_t startAddress, uintptr_t parameter) {
-	HANDLE threadHandle = CreateRemoteThread(
-		m_processHandle,
-		nullptr,
-		0,
-		reinterpret_cast<LPTHREAD_START_ROUTINE>(startAddress),
-		reinterpret_cast<LPVOID>(parameter),
-		0,
-		nullptr
-	);
-
-	if (threadHandle == nullptr) {
-		LOG_TO(Console)(Error,
-			std::format(
-				"CreateRemoteThread failed. Error code: {}",
-				GetLastError()
-			)
-		);
-	}
-
-	return threadHandle;
-}
-
-void Memory::deleteThread(HANDLE threadHandle, uintptr_t bufferPtr) {
-	if (threadHandle) {
-		WaitForSingleObject(threadHandle, INFINITE);
-		CloseHandle(threadHandle);
-
-		if (bufferPtr != 0) {
-            if (!VirtualFreeEx(m_processHandle, reinterpret_cast<LPVOID>(bufferPtr), 0, MEM_RELEASE)) {
-				LOG_TO(Console)(Error,
-					std::format(
-						"Failed to free memory. Error code: {}",
-						GetLastError()
-					)
-				);
-            }
-			else {
-				LOG_TO(Console)(Info, "Memory freed successfully.");
-            }
-        }
-	}
-}
-
 bool Memory::changeMemoryProtection(uintptr_t address, size_t size, DWORD newProtection, DWORD& oldProtection) {
 	if (!VirtualProtectEx(
 		m_processHandle,
@@ -326,9 +187,9 @@ bool Memory::changeMemoryProtection(uintptr_t address, size_t size, DWORD newPro
 				GetLastError()
 			)
 		);
-		return false;
+		return EXIT_FAILURE;
 	}
-	return true;
+	return EXIT_SUCCESS;
 }
 
 bool Memory::restoreMemoryProtection(uintptr_t address, size_t size, DWORD originalProtection) {
@@ -346,9 +207,9 @@ bool Memory::restoreMemoryProtection(uintptr_t address, size_t size, DWORD origi
 				GetLastError()
 			)
 		);
-		return false;
+		return EXIT_SUCCESS;
 	}
-	return true;
+	return EXIT_FAILURE;
 }
 
 
@@ -371,19 +232,6 @@ std::vector<MemoryRegion> Memory::enumerateMemoryRegions() const {
 	return regions;
 }
 
-BOOL CALLBACK Memory::EnumWindowsProc(HWND hwnd, LPARAM lParam) {
-	if (!IsWindowVisible(hwnd))
-		return TRUE;  // skip invisible windows
-
-	DWORD processId = 0;
-	GetWindowThreadProcessId(hwnd, &processId);
-	if (processId != 0) {
-		auto windowedPids = reinterpret_cast<std::unordered_set<DWORD>*>(lParam);
-		windowedPids->insert(processId);
-	}
-	return TRUE;
-}
-
 std::vector<uintptr_t> Memory::findAllBytes(const void* pattern, size_t length) const {
 	std::vector<uintptr_t> results;
 	auto bytePatt = static_cast<const uint8_t*>(pattern);
@@ -391,26 +239,18 @@ std::vector<uintptr_t> Memory::findAllBytes(const void* pattern, size_t length) 
 
 	for (const auto& region : enumerateMemoryRegions()) {
 		if (!(region.state & MEM_COMMIT)) continue;
+		if (region.protect & (PAGE_GUARD | PAGE_NOACCESS)) continue;
 		if (!(region.protect & MemProtect::readWrite)) continue;
+		// if (region.type != MEM_PRIVATE) continue;
 
 		auto base = reinterpret_cast<uintptr_t>(region.baseAddress);
 		auto size = region.regionSize;
 
-		// Read the entire region in one go
-		std::vector<uint8_t> buffer(size);
-		SIZE_T bytesRead = 0;
-		if (!::ReadProcessMemory(
-			m_processHandle,
-			reinterpret_cast<LPCVOID>(base),
-			buffer.data(),
-			size,
-			&bytesRead
-		) || bytesRead < length) {
-			continue;  // Couldn't read or too small to match
-		}
+		auto buffer = bufferRead<uint8_t>(base, size);
+		if (buffer.size() < length) continue;
 
 		auto scanBegin = buffer.begin();
-		auto scanEnd = buffer.begin() + bytesRead;
+		auto scanEnd = buffer.end();
 
 		while (true) {
 			auto it = std::search(scanBegin, scanEnd, searcher);

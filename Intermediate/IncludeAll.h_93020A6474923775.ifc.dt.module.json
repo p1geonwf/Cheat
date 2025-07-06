@@ -1,0 +1,22 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "C:\\Users\\p1geo\\Desktop\\C++\\Malware and Hacks\\Cheat\\Intermediate\\IncludeAll.obj",
+            "outputs": [
+                "C:\\Users\\p1geo\\Desktop\\C++\\Malware and Hacks\\Cheat\\Intermediate\\IncludeAll.h_93020A6474923775.ifc.dt.module.json",
+                "C:\\Users\\p1geo\\Desktop\\C++\\Malware and Hacks\\Cheat\\Intermediate\\IncludeAll.h_93020A6474923775.ifc.dt.d.json",
+                "C:\\Users\\p1geo\\Desktop\\C++\\Malware and Hacks\\Cheat\\Intermediate\\IncludeAll.h.ifc"
+            ],
+            "provides": [
+                {
+                    "logical-name": "C:\\Users\\p1geo\\Desktop\\C++\\Malware and Hacks\\Cheat\\Include\\IncludeAll.h",
+                    "source-path": "c:\\users\\p1geo\\desktop\\c++\\malware and hacks\\cheat\\include\\includeall.h",
+                    "lookup-method": "absolute"
+                }
+            ],
+            "requires": []
+        }
+    ]
+}

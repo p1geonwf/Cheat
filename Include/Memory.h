@@ -7,12 +7,10 @@
 #include <Windows.h>
 #include <shellapi.h>
 #include <TlHelp32.h>
-#include <thread>
 #include <string>
 #include <vector>
 #include <algorithm>
-#include <unordered_set>
-#include <functional>         
+#include <functional>
 #include <iterator>
 #include <limits>
 #include <stdexcept>
@@ -21,6 +19,7 @@
 #include <sal.h> 
 
 #include <Logger.h>
+#include <Process.h>
 
 namespace MemProtect {
 	inline constexpr DWORD readWrite = PAGE_READWRITE;
@@ -67,14 +66,12 @@ public:
 	void setProcessID(DWORD processId);
 	void setProcessHandle(HANDLE processHandle);
 
-	// Static functions
-	static void dispAllProcesses();
-	static void dispAllWindowedProcesses();
-	static void dispAllModules(DWORD processId);
-
 	// Self explanatory
 	bool attachProcess(const std::string_view processName);
 	uintptr_t getModuleAddress(const std::string_view moduleName);
+
+	// DLL injection
+	bool injectDLL(std::string_view dllPath);
 
 	// Memory reads
 	template<typename T> std::vector<SearchResult<T>> findAll(const T& value) const;
@@ -82,16 +79,6 @@ public:
 
 	// Memory writes
 	template<typename T> void replaceValue(SearchResult<T>& oldState, T val);
-
-	// VirtualAllocEx wrapper
-	uintptr_t allocateProcessMemory(size_t allocationSize);
-
-	// DLL injection
-	bool injectDLL(std::string_view dllPath);
-	
-	// Thread management
-	HANDLE createThread(uintptr_t startAddress, uintptr_t parameter = 0);
-	void deleteThread(HANDLE threadHandle, uintptr_t bufferPtr);
 
 	// Memory protection management
 	bool changeMemoryProtection(uintptr_t address, size_t size, DWORD newProtection, DWORD& oldProtection);
@@ -108,7 +95,6 @@ private:
 	HANDLE m_processHandle = nullptr; // Process handle
 
 	std::vector<MemoryRegion> enumerateMemoryRegions() const;
-	static BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam);
 	template<typename T> std::vector<uintptr_t> findAllTypes(const T& value) const;
 	std::vector<uintptr_t> findAllBytes(const void* pattern, size_t length) const;
 
@@ -120,8 +106,6 @@ private:
 		std::is_same_v<typename C::value_type, std::byte>,
 		std::vector<uintptr_t>> { return findAllBytes(c.data(), c.size() * sizeof(typename C::value_type)); }
 };
-
-
 
 
 
@@ -158,10 +142,10 @@ template<typename T> std::vector<uintptr_t> Memory::findAllTypes(const T& value)
 		if (!(region.protect & MemProtect::readWrite)) continue;
 		// if (region.type != MEM_PRIVATE) continue;
 
-		uintptr_t base = reinterpret_cast<uintptr_t>(region.baseAddress);
-		size_t sz = region.regionSize;
+		auto base = reinterpret_cast<uintptr_t>(region.baseAddress);
+		auto size = region.regionSize;
 
-		auto buffer = bufferRead<uint8_t>(base, sz);
+		auto buffer = bufferRead<uint8_t>(base, size);
 		if (buffer.size() < length) continue;
 
 		// Walk in alignof(T) sized steps
@@ -222,7 +206,7 @@ template <typename T> bool Memory::singleWrite(const uintptr_t address, const T&
 
 	if (::WriteProcessMemory(m_processHandle, reinterpret_cast<LPVOID>(address), &val, sizeof(T), &bytesWritten)
 		&& bytesWritten == sizeof(T)) {
-		return true;
+		return EXIT_SUCCESS;
 	}
 	LOG_TO(Console)(Error,
 		std::format(
@@ -231,7 +215,7 @@ template <typename T> bool Memory::singleWrite(const uintptr_t address, const T&
 			GetLastError()
 		)
 	);
-	return false;
+	return EXIT_FAILURE;
 }
 
 template <typename T> std::vector<T> Memory::bufferRead(const uintptr_t address, size_t count) const {
@@ -267,7 +251,7 @@ template <typename T> bool Memory::bufferWrite(const uintptr_t address, const st
 
 	if (::WriteProcessMemory(m_processHandle, reinterpret_cast<LPVOID>(address), buffer.data(), byteCount, &bytesWritten)
 		&& bytesWritten == byteCount) {
-		return true;
+		return EXIT_SUCCESS;
 	}
 	LOG_TO(Console)(Error,
 		std::format(
@@ -276,5 +260,5 @@ template <typename T> bool Memory::bufferWrite(const uintptr_t address, const st
 			GetLastError()
 		)
 	);
-	return false;
+	return EXIT_FAILURE;
 }
