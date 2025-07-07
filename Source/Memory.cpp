@@ -147,14 +147,12 @@ uintptr_t Memory::getModuleAddress(const std::string_view moduleName) {
 }
 
 bool Memory::injectDLL(std::string_view dllPath) {
-
-
 	uintptr_t remoteStr = Process::allocateProcessMemory(m_processHandle, dllPath.size() + 1);
 
 	std::vector<char> pathBuf(dllPath.begin(), dllPath.end());
 	pathBuf.push_back('\0');
 
-	if (bufferWrite(remoteStr, pathBuf)) {
+	if (!bufferWrite(remoteStr, pathBuf)) {
 		VirtualFreeEx(m_processHandle, reinterpret_cast<LPVOID>(remoteStr), 0, MEM_RELEASE);
 		LOG_TO(Console)(Error, "injectDLL(): VirtualFreeEx failed!");
 		return false;
@@ -187,7 +185,7 @@ bool Memory::injectDLL(std::string_view dllPath) {
 			"Loaded {} successfully",
 			dllPath
 		)
-		);
+	);
 	return true;
 }
 

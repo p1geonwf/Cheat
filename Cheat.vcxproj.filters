@@ -24,6 +24,9 @@
     <ClInclude Include="Include\Process.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Include\Registry.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\Memory.cpp">
@@ -33,6 +36,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Source\Process.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Registry.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

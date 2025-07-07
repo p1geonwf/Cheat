@@ -4,25 +4,21 @@ int main() {
 	Process::createProcess("notepad.exe");
 
 	// Find process
-	/*
 	const std::string_view processName = "Notepad.exe";
 	Memory memory = { };
 	memory.attachProcessByName(processName);
-	*/
-
-	// Process::suspendProcess(Process::getProcessId("Notepad.exe"));
-	// Process::resumeProcess(Process::getProcessId("Notepad.exe"));
-	// Process::terminateProcessById(Process::getProcessId("Notepad.exe"));
-	// Process::terminateProcessByName("Notepad.exe");
-
+	
+	Process::suspendProcess(Process::getProcessId("Notepad.exe"));
+	Process::resumeProcess(Process::getProcessId("Notepad.exe"));
+	Process::terminateProcessById(Process::getProcessId("Notepad.exe"));
+	Process::terminateProcessByName("Notepad.exe");
 
 	/*
-	auto ret = memory.findAll<uint32_t>(1211);
-	for (auto x : ret) {
-		std::cout << std::hex << x.address << '\n';
-	}
+	std::string exePath = "C:\\Program Files\\Windows Media Player\\wmplayer.exe";
+	std::string videoArg = "/play \"C:\\Users\\p1geo\\Desktop\\C++\\Malware and Hacks\\Cheat\\Output\\Debug\\lv_0_20210823164858.mp4\"";
+
+	Process::createProcess(exePath, videoArg);
 	*/
-	
 	/*
 	while (true)
 	{
@@ -40,7 +36,6 @@ int main() {
 // Make logger not display logs that are of lower levels then instantiated
 // Make logs more descriptive check resumeThread
 
-// Make a class to start processes
 // Make class to edit registry
 // Make a class for sockets and internet communication
 // Make gui with either windows api or ImGui

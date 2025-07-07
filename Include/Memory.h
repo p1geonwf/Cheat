@@ -20,6 +20,7 @@
 #include <type_traits>
 #include <chrono>
 #include <sal.h> 
+#include <filesystem>
 
 #include <Logger.h>
 #include <Process.h>

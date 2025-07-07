@@ -22,8 +22,10 @@
     <ClInclude Include="Include\Logger.h" />
     <ClInclude Include="Include\Memory.h" />
     <ClInclude Include="Include\Process.h" />
+    <ClInclude Include="Include\Registry.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Source\Registry.cpp" />
     <ClCompile Include="Source\Process.cpp" />
     <ClCompile Include="Source\main.cpp" />
     <ClCompile Include="Source\Memory.cpp" />
