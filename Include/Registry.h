@@ -17,12 +17,14 @@ public:
 	bool open(HKEY root, const std::wstring& subkey, REGSAM access = KEY_READ);
 	bool create(HKEY root, const std::wstring& subkey, REGSAM access = KEY_WRITE);
 
-private:
-	HKEY m_key = nullptr;
-	std::error_code m_lastErr = { };
 
+private:
 	static std::error_code toErrorCode(LONG winerr) noexcept {
 		return std::make_error_code(static_cast<std::errc>(winerr));
 	}
+
+private:
+	HKEY m_key = nullptr;
+	std::error_code m_lastErr = { };
 };
 

@@ -15,19 +15,21 @@ enum class SinkId { Console, TextFile, GUI, _count };
 
 class Logger {
 public:
-    using SinkFn = std::function<void(
-        LogLevel level,
-        std::string_view file,
-        int line,
-        std::string_view msg
-        )>;
+    using SinkFn = std::function<void(LogLevel level, std::string_view file, int line, std::string_view msg)>;
 
     static void addSink(SinkId id, SinkFn sink) {
         auto idx = static_cast<size_t>(id);
         s_sinks[idx] = std::move(sink);
     }
 
+    static void setLevel(LogLevel level) noexcept {
+        s_threshold = level;
+    }
+
     static void logTo(SinkId who, LogLevel level, std::string_view file, int line, std::string_view msg) {
+        if (static_cast<int>(level) < static_cast<int>(s_threshold))
+            return;
+
         auto idx = static_cast<size_t>(who);
         auto& fn = s_sinks[idx];
 
@@ -42,7 +44,7 @@ public:
     }
 
 private:
-    static constexpr const char* enum_to_string(LogLevel level) noexcept {
+    static constexpr std::string_view enumToString(LogLevel level) noexcept {
         switch (level) {
         case LogLevel::Info:    return "INFO";
         case LogLevel::Warning: return "WARNING";
@@ -51,7 +53,7 @@ private:
         }
     }
 
-    static std::string current_timestamp() {
+    static std::string currentTimeStamp() {
         using clock = std::chrono::system_clock;
         auto now = clock::now();
         auto tt = clock::to_time_t(now);
@@ -70,15 +72,14 @@ private:
 
     static std::string format( LogLevel level, std::string_view file, int line, std::string_view msg) {
         return std::format("[{}] [{}] {}:{} - {}",
-            current_timestamp(),
-            enum_to_string(level),
+            currentTimeStamp(),
+            enumToString(level),
             file,
             line,
             msg);
     }
 
-    static inline std::array<SinkFn, static_cast<size_t>(SinkId::_count)> s_sinks = { };
-
+private:
     struct Registrar {
         Registrar() {
             // Console 
@@ -97,12 +98,15 @@ private:
             // GUI
             Logger::addSink(SinkId::GUI,
                 [&](auto, auto, auto, std::string_view msg) {
-                    
+                    // Will implement it with ImGui later
                 });
         }
     };
 
+private:
+    static inline std::array<SinkFn, static_cast<size_t>(SinkId::_count)> s_sinks = { };
     static inline Registrar s_registrar;
+    static inline LogLevel s_threshold = LogLevel::Info;
 };
 
 

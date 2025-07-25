@@ -19,12 +19,14 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Include\CommandLine.h" />
     <ClInclude Include="Include\Logger.h" />
     <ClInclude Include="Include\Memory.h" />
     <ClInclude Include="Include\Process.h" />
     <ClInclude Include="Include\Registry.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Source\CommandLine.cpp" />
     <ClCompile Include="Source\Registry.cpp" />
     <ClCompile Include="Source\Process.cpp" />
     <ClCompile Include="Source\main.cpp" />

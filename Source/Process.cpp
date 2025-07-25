@@ -129,7 +129,7 @@ uintptr_t Process::allocateProcessMemory(HANDLE processHandle, size_t allocation
 				"VirtualAllocEx failed. Error code: {}",
 				GetLastError()
 			)
-			);
+		);
 	}
 	return reinterpret_cast<uintptr_t>(remoteBufferPointer);
 }

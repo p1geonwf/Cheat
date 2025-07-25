@@ -96,20 +96,21 @@ public:
 	template <typename T> bool bufferWrite(const uintptr_t address, const std::vector<T>& buffer);
 
 private:
-	DWORD m_processId = 0;		      // Process id
-	HANDLE m_processHandle = nullptr; // Process handle
-
 	std::vector<MemoryRegion> enumerateMemoryRegions() const;
 	template<typename T> std::vector<uintptr_t> findAllTypes(const T& value) const;
 	std::vector<uintptr_t> findAllBytes(const void* pattern, size_t length) const;
 
 	// overload for <pointer, length> container of bytes 
 	template<typename C>
-	auto findAllBytes(const C& c) const ->std::enable_if_t<
+	auto findAllBytes(const C& c) const -> std::enable_if_t<
 		std::is_same_v<typename C::value_type, char> ||
 		std::is_same_v<typename C::value_type, uint8_t> ||
 		std::is_same_v<typename C::value_type, std::byte>,
 		std::vector<uintptr_t>> { return findAllBytes(c.data(), c.size() * sizeof(typename C::value_type)); }
+
+private:
+	DWORD m_processId = 0;		      // Process id
+	HANDLE m_processHandle = nullptr; // Process handle
 };
 
 
